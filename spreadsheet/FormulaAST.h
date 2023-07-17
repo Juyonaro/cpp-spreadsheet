@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace ASTImpl {
-class Expr;
+    class Expr;
 }
 
 class ParsingError : public std::runtime_error {
@@ -23,18 +23,13 @@ public:
     FormulaAST& operator=(FormulaAST&&) = default;
     ~FormulaAST();
 
-    double Execute(/*добавьте нужные аргументы*/ args) const;
+    double Execute(const SheetInterface& sheet) const;
     void PrintCells(std::ostream& out) const;
     void Print(std::ostream& out) const;
     void PrintFormula(std::ostream& out) const;
 
-    std::forward_list<Position>& GetCells() {
-        return cells_;
-    }
-
-    const std::forward_list<Position>& GetCells() const {
-        return cells_;
-    }
+    std::forward_list<Position>& GetCells();
+    const std::forward_list<Position>& GetCells() const;
 
 private:
     std::unique_ptr<ASTImpl::Expr> root_expr_;
