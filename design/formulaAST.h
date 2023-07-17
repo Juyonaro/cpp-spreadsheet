@@ -21,13 +21,17 @@ public:
     FormulaAST(FormulaAST&&) = default;
     FormulaAST& operator=(FormulaAST&&) = default;
     ~FormulaAST();
-
-    double Execute() const;
+    
+    double Execute(const std::function<double(Position)>& other) const; //
     void Print(std::ostream& out) const;
     void PrintFormula(std::ostream& out) const;
-
+    
+    std::forward_list<Position>& GetCells();
+    
 private:
     std::unique_ptr<ASTImpl::Expr> root_expr_;
+    
+    std::forward_list<Position> cells_;
 };
 
 FormulaAST ParseFormulaAST(std::istream& in);
