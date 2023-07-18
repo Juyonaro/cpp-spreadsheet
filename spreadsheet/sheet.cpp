@@ -10,7 +10,7 @@ using namespace std::literals;
 
 void Sheet::SetCell(Position pos, std::string text) {
     // Проверяем, является ли позиция допустимой
-    IsValidPosition(pos);
+    CheckValidPosition(pos);
 
     // Если ячейка на данной позиции не существует, создаем новую
     if (sheet_.count(pos) == 0) {
@@ -28,7 +28,7 @@ const CellInterface* Sheet::GetCell(Position pos) const {
 
 CellInterface* Sheet::GetCell(Position pos) {
     // Проверяем, является ли позиция допустимой
-    IsValidPosition(pos);
+    CheckValidPosition(pos);
     
     // Если ячейка на данной позиции не существует, возвращаем nullptr
     if (sheet_.count(pos) == 0) {
@@ -41,15 +41,15 @@ CellInterface* Sheet::GetCell(Position pos) {
 
 void Sheet::ClearCell(Position pos) {
     // Проверяем, является ли позиция допустимой
-    IsValidPosition(pos);
-
-    // Если ячейки на данной позиции не существует, прекращаем выполнение метода
-    if (!GetCell(pos)) {
-        return;
-    }
+    CheckValidPosition(pos);
     
-    // Удаляем ячейку на данной позиции из хранилища
-    sheet_.erase(pos);
+    // Получаем ссылку на ячейку на данной позиции
+    const auto& cell = sheet_.find(pos);
+    // Если ячейки на данной позиции не существует или есть зависимости, очищаем ячейку
+    if (cell != sheet_.end() && cell->second != nullptr) {
+        cell->second->Clear();
+        cell->second.reset();
+    }
 }
 
 Size Sheet::GetPrintableSize() const {
@@ -115,7 +115,7 @@ void Sheet::PrintTexts(std::ostream& output) const {
     }
 }
 
-void Sheet::IsValidPosition(Position pos) {
+void Sheet::CheckValidPosition(Position pos) {
     // Проверяем, является ли позиция допустимой, иначе выбрасываем исключение
     if (!pos.IsValid()) {
         throw InvalidPositionException("invalid position"s);

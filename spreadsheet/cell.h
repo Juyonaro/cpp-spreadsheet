@@ -89,14 +89,14 @@ private:
     };
     
     // Проверка, является ли ячейка зависимой от других ячеек
-    void IsDependency(const std::vector<Position>& dep_cell) const;
+    void CheckDependency(const std::vector<Position>& dep_cell) const;
     // Проверка на циклическую зависимость между ячейками
     void CheckCircularDepend(const std::vector<Position>& dep_cell, std::unordered_set<CellInterface*>& ref_cells) const;
     
     // Очистка кэша значения ячейки
     void InvalidateCache();
     // Рекурсивная очистка кэша значения ячейки и всех ячеек, от которых она зависит
-    void InvalidateCacheRecursive(std::unordered_set<Cell*>& ref_cells);
+    void InvalidateCacheRecursive();
     // Обновление списка зависимых ячеек
     void UpdateDependencies(const std::vector<Position>& new_ref_cells);
     

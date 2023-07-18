@@ -11,19 +11,20 @@ using namespace std;
 Cell::Cell(SheetInterface& sheet) : sheet_(sheet), impl_(std::make_unique<EmptyImpl>()) {}
 
 void Cell::Set(std::string text) {
-    // Очищаем список ссылок перед установкой нового значения ячейки
-    reference_.clear();
+    // Если текст в ячейке уже совпадает - не нужно ничего делать
+    if (impl_->GetText() == text) {
+        return;
+    }
     
     if (!text.empty()) {
         if (text[0] == FORMULA_SIGN && text.size() > 1) {
             unique_ptr<Impl> tmp_impl = make_unique<FormulaImpl>(text.substr(1), sheet_);
             
             const auto& new_referenced = tmp_impl->GetReferencedCells();
-            IsDependency(new_referenced);
+            CheckDependency(new_referenced);
             
-            if (!new_referenced.empty()) {
-                UpdateDependencies(new_referenced);
-            }
+            // Обновляем зависимости даже если new_referenced пустой
+            UpdateDependencies(new_referenced);
             
             impl_ = std::move(tmp_impl);
         }
@@ -33,13 +34,20 @@ void Cell::Set(std::string text) {
     }
     else {
         impl_ = make_unique<EmptyImpl>();
+        // Передаем пустой список зависимостей для очистки всех зависимостей
+        UpdateDependencies({});
     }
     
+    // Очистка списка зависимостей после установки значения
+    reference_.clear();
+    // Инвалидация кэша ячейки
     InvalidateCache();
 }
 
+// Обновляем зависимости и сбрасываем кэш ячейки при очистке,
+// передавая пустой текст в качестве аргумента
 void Cell::Clear() {
-    impl_ = make_unique<EmptyImpl>();
+    Set("");
 }
 
 Cell::Value Cell::GetValue() const {
@@ -54,7 +62,7 @@ std::vector<Position> Cell::GetReferencedCells() const {
     return impl_->GetReferencedCells();
 }
 
-void Cell::IsDependency(const std::vector<Position>& dep_cell) const {
+void Cell::CheckDependency(const std::vector<Position>& dep_cell) const {
     unordered_set<CellInterface*> ref_cells;
     // Проверяем, является ли текущая ячейка зависимой от других ячеек
     CheckCircularDepend(dep_cell, ref_cells);
@@ -82,12 +90,14 @@ void Cell::CheckCircularDepend(const std::vector<Position>& dep_cell, std::unord
 
 // Устанавливаем новые зависимые ячейки и обновляем списки зависимостей
 void Cell::UpdateDependencies(const std::vector<Position>& new_ref) {
-    reference_.clear();
-    
-    for_each(depend_.begin(), depend_.end(), [this](Cell* dependent) {
-        dependent->depend_.erase(this);
+    // Очищаем зависимость ячейки из списка ячеек,
+    // на которые ранее ссылалась текущая ячейка
+    for_each(reference_.begin(), reference_.end(), [this](Cell* referenced) {
+        referenced->depend_.erase(this);
     });
-    
+
+    reference_.clear();
+
     for (const auto& c : new_ref) {
         if (!sheet_.GetCell(c)) {
             sheet_.SetCell(c, ""s);
@@ -102,26 +112,22 @@ void Cell::UpdateDependencies(const std::vector<Position>& new_ref) {
 
 void Cell::InvalidateCache() {
     impl_->ResetCache();
-    
-    std::unordered_set<Cell*> ref_cells;
-    InvalidateCacheRecursive(ref_cells);
+    InvalidateCacheRecursive();
 }
 
-void Cell::InvalidateCacheRecursive(std::unordered_set<Cell*>& ref_cells) {
+void Cell::InvalidateCacheRecursive() {
     for (const auto& dep_cell : depend_) {
-        dep_cell->impl_->ResetCache();
-        
-        if (ref_cells.count(dep_cell) == 0) {
-            if (!dep_cell->depend_.empty()) {
-                dep_cell->InvalidateCacheRecursive(ref_cells);
-            }
-            
-            ref_cells.insert(dep_cell);
+        // Проверяем наличие кэша в каждой зависимой ячейке
+        if (dep_cell->impl_->GetCache().has_value()) {
+            // Если кэш присутствует - сбрасываем его
+            dep_cell->impl_->ResetCache();
+            // Выполняем повторную рекурсию для данной зависимой ячейки
+            dep_cell->InvalidateCacheRecursive();
         }
     }
 }
 
-// EmptyImpl class
+// Impl class
 std::vector<Position> Cell::Impl::GetReferencedCells() const {
     return {};
 }
@@ -132,6 +138,7 @@ std::optional<FormulaInterface::Value> Cell::Impl::GetCache() const {
 
 void Cell::Impl::ResetCache() {}
 
+// EmptyImpl class
 CellInterface::Value Cell::EmptyImpl::GetValue() const {
     return ""s;
 }
@@ -164,15 +171,12 @@ CellInterface::Value Cell::FormulaImpl::GetValue() const {
         cache_ = formula_->Evaluate(sheet_);
     }
     
-    switch (cache_.value().index()) {
-        case 0:
-            return get<0>(cache_.value());
-        case 1:
-            return get<1>(cache_.value());
-        default:
-            assert(false);
-            throw std::runtime_error("Error"s);
+    auto value = formula_->Evaluate(sheet_);
+    if (std::holds_alternative<double>(value)) {
+        return std::get<double>(value);
     }
+    
+    return std::get<FormulaError>(value);
 }
 
 std::string Cell::FormulaImpl::GetText() const {

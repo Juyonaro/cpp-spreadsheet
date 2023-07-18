@@ -257,32 +257,39 @@ namespace ASTImpl {
                 if (!cell) return 0.0;
 
                 const auto& value = cell->GetValue();
-                switch (value.index()) {
-                    case 0: {
-                        const auto& str_value = std::get<std::string>(value);
-                        if (str_value.empty()) {
-                            return 0.0;
-                        }
-                        try {
-                            double res;
-                            std::istringstream input(str_value);
-                            if (!(input >> res) || !input.eof()) {
-                                throw FormulaError(FormulaError::Category::Value);
-                            }
-
-                            return res;
-                        } catch (...) {
+                
+                // Проверка типа значения с помощью std::holds_alternative
+                if (std::holds_alternative<std::string>(value)) {
+                    // Используем std::get для безопасного получения значения
+                    const auto& str_value = std::get<std::string>(value);
+                    
+                    if (str_value.empty()) {
+                        return 0.0;
+                    }
+                    
+                    try {
+                        double res;
+                        
+                        std::istringstream input(str_value);
+                        
+                        if (!(input >> res) || !input.eof()) {
                             throw FormulaError(FormulaError::Category::Value);
                         }
+
+                        return res;
                     }
-                    case 1:
-                        return std::get<double>(value);
-                    case 2:
-                        throw std::get<FormulaError>(value);
-                    default:
-                        assert(false);
+                    catch (...) {
+                        throw FormulaError(FormulaError::Category::Value);
+                    }
+                }
+                else if (std::holds_alternative<double>(value)) {
+                    return std::get<double>(value);
+                }
+                else {
+                    throw std::get<FormulaError>(value);
                 }
             }
+
 
         private:
             const Position* pos_cell_;
