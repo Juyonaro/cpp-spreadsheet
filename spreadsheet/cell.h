@@ -21,6 +21,8 @@ public:
     // Получение списка ячеек, на которые ссылается текущая ячейка
     std::vector<Position> GetReferencedCells() const override;
 
+    bool IsReferenced() const;
+    
 private:
     class Impl {
     public:

@@ -42,13 +42,22 @@ CellInterface* Sheet::GetCell(Position pos) {
 void Sheet::ClearCell(Position pos) {
     // Проверяем, является ли позиция допустимой
     CheckValidPosition(pos);
-    
+
     // Получаем ссылку на ячейку на данной позиции
     const auto& cell = sheet_.find(pos);
-    // Если ячейки на данной позиции не существует или есть зависимости, очищаем ячейку
-    if (cell != sheet_.end() && cell->second != nullptr) {
+
+    // Если ячейки на данной позиции не существует, просто возвращаемся
+    if (cell == sheet_.end() || cell->second == nullptr) {
+        return;
+    }
+
+    // Если у ячейки есть зависимости, сбрасываем только значение ячейки
+    if (cell->second->IsReferenced()) {
         cell->second->Clear();
-        cell->second.reset();
+    }
+    else {
+        // Если у ячейки нет зависимостей, удаляем её из хранилища
+        sheet_.erase(cell);
     }
 }
 

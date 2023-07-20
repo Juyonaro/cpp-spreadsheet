@@ -16,19 +16,27 @@ void Cell::Set(std::string text) {
         return;
     }
     
+    // Сохраняем текущие зависимости
+    const auto& current_referenced = impl_->GetReferencedCells();
+    // Обновляем значение ячейки // проверяем новые зависимости
     if (!text.empty()) {
         if (text[0] == FORMULA_SIGN && text.size() > 1) {
             unique_ptr<Impl> tmp_impl = make_unique<FormulaImpl>(text.substr(1), sheet_);
             
+            // Сохраняем новые зависимости
             const auto& new_referenced = tmp_impl->GetReferencedCells();
+            // Проверяем, есть ли циклическая зависимость
             CheckDependency(new_referenced);
-            
             // Обновляем зависимости даже если new_referenced пустой
             UpdateDependencies(new_referenced);
             
             impl_ = std::move(tmp_impl);
         }
         else {
+            const auto& new_referenced = impl_->GetReferencedCells();
+            CheckDependency(new_referenced);
+            UpdateDependencies(new_referenced);
+            
             impl_ = make_unique<TextImpl>(std::move(text));
         }
     }
@@ -38,8 +46,9 @@ void Cell::Set(std::string text) {
         UpdateDependencies({});
     }
     
-    // Очистка списка зависимостей после установки значения
-    reference_.clear();
+    // Обновляем зависимости на основе сохраненных текущих зависимостей
+    UpdateDependencies(current_referenced);
+    
     // Инвалидация кэша ячейки
     InvalidateCache();
 }
@@ -60,6 +69,10 @@ std::string Cell::GetText() const {
 
 std::vector<Position> Cell::GetReferencedCells() const {
     return impl_->GetReferencedCells();
+}
+
+bool Cell::IsReferenced() const {
+    return !reference_.empty();
 }
 
 void Cell::CheckDependency(const std::vector<Position>& dep_cell) const {
